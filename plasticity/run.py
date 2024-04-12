@@ -21,9 +21,9 @@ if __name__ == "__main__":
             (0.9, 0.1),
             (0.2, 0.8),
         ),  # A:B reward probabilities for corresponding to each block
-        "log_expdata": True,  # flag to save the training data
+        "log_expdata": False,  # flag to save the training data
         "log_interval": 25,  # log training data every x epochs
-        "use_experimental_data": False,  # use simulated or experimental data
+        "use_experimental_data": True,  # use simulated or experimental data
         "flyid": 1,  # flyid saved for parallel runs on cluster
         "fit_data": "behavior",  # code searches for words: "neural", "behavior", corresponding to fitting on neural activity recordings or binary behavioral choices
         "neural_recording_sparsity": 1.0,  # sparsity of 1. means all neurons are recorded
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             1,
         ],  # [3, hidden_dim, 1] (if functional family is MLP, then define parameters)
         "moving_avg_window": 10,  # define the window for calculating expected reward, E[R]
-        "data_dir": "../data/",  # directory to load experimental data
+        "data_dir": "../../data/",  # directory to load experimental data
         "log_dir": "logs/",  # directory to save experimental data
         "trainable_coeffs": int(np.sum(coeff_mask)),
         "coeff_mask": coeff_mask.tolist(),
