@@ -89,10 +89,29 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
 
         ind_i, ind_j, ind_k, ind_l = coeff_mask.nonzero()
         top_indices = np.argsort(plasticity_coeff[ind_i, ind_j, ind_k, ind_l].flatten())[-5:]
+        print("top plasticity coeffs:")
+        print("{:<10} {:<20}".format("Term", "Coefficient"))
         for idx in reversed(top_indices):
-            index = (ind_i[idx], ind_j[idx], ind_k[idx], ind_l[idx])
-            print(f"A{index}", plasticity_coeff[index])
-        print("\n")
+            term_str = ""
+            if ind_i[idx] == 1:
+                term_str += "X "
+            elif ind_i[idx] == 2:
+                term_str += "X² "
+            if ind_j[idx] == 1:  
+                term_str += "Y "
+            elif ind_j[idx] == 2:
+                term_str += "Y² "
+            if ind_k[idx] == 1:
+                term_str += "W "
+            elif ind_k[idx] == 2:  
+                term_str += "W² "
+            if ind_l[idx] == 1:
+                term_str += "R"
+            elif ind_l[idx] == 2:
+                term_str += "R²"
+            coeff = plasticity_coeff[ind_i[idx], ind_j[idx], ind_k[idx], ind_l[idx]]
+            print("{:<10} {:<20.5f}".format(term_str, coeff))
+        print()
     else:
         print("MLP plasticity coeffs: ", plasticity_coeff)
         expdata.setdefault("mlp_params", []).append(plasticity_coeff)

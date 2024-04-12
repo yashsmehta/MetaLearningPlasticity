@@ -54,14 +54,14 @@ def mlp_forward_pass(mlp_params, inputs):
     return jnp.squeeze(output)
 
 
-def mlp_plasticity_function(x, y, z, mlp_params):
+def mlp_plasticity_function(x, y, w, r, mlp_params):
     """
     Functionality: Computes the MLP plasticity function for given inputs and MLP parameters.
     Inputs: x, y, z (floats): Inputs to the MLP plasticity function.
             mlp_params (list): MLP parameters.
     Returns: The result of the MLP plasticity function.
     """
-    inputs = jnp.array([x, y, z])
+    inputs = jnp.array([x, y, w, r])
     dw = mlp_forward_pass(mlp_params, inputs)
     return dw
 

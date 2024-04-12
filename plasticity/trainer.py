@@ -27,7 +27,7 @@ def train(cfg):
     # are we running on CPU or GPU?
     device = jax.lib.xla_bridge.get_backend().platform
     print("platform: ", device)
-    print(f"layer size: {cfg.layer_sizes}")
+    print(f"layer sizes: {cfg.layer_sizes}")
 
     key, subkey = split(key)
 
