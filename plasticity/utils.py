@@ -81,11 +81,16 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
         for i in range(3):
             for j in range(3):
                 for k in range(3):
-                    dict_key = f"A_{i}{j}{k}"
-                    expdata.setdefault(dict_key, []).append(plasticity_coeff[i, j, k])
+                    for l in range(3):
+                        dict_key = f"A_{i}{j}{k}{l}"
+                        expdata.setdefault(dict_key, []).append(
+                            plasticity_coeff[i, j, k, l]
+                        )
 
-        ind_i, ind_j, ind_k = coeff_mask.nonzero()
-        for index in zip(ind_i, ind_j, ind_k):
+        ind_i, ind_j, ind_k, ind_l = coeff_mask.nonzero()
+        top_indices = np.argsort(plasticity_coeff[ind_i, ind_j, ind_k, ind_l].flatten())[-5:]
+        for idx in reversed(top_indices):
+            index = (ind_i[idx], ind_j[idx], ind_k[idx], ind_l[idx])
             print(f"A{index}", plasticity_coeff[index])
         print("\n")
     else:
