@@ -155,8 +155,8 @@ def validate_config(cfg):
         "mlp",
     ], "only volterra, mlp generation model supported!"
     assert (
-        cfg.meta_mlp_layer_sizes[0] == 3 and cfg.meta_mlp_layer_sizes[-1] == 1
-    ), "meta mlp input dim must be 3, and output dim 1!"
+        cfg.meta_mlp_layer_sizes[0] == 4 and cfg.meta_mlp_layer_sizes[-1] == 1
+    ), "meta mlp input dim must be 4, and output dim 1!"
     assert cfg.layer_sizes[-1] == 1, "output dim must be 1!"
     assert (
         len(cfg.layer_sizes) == 2 or len(cfg.layer_sizes) == 3
@@ -180,19 +180,19 @@ def validate_config(cfg):
         assert (
             "behavior" in cfg.fit_data and "neural" not in cfg.fit_data
         ), "only behavior experimental data available!"
-        del cfg["trials_per_block"]
-        del cfg["reward_ratios"]
+        cfg["trials_per_block"] = "N/A"
+        cfg["reward_ratios"] = "N/A"
 
     if cfg["plasticity_model"] == "mlp":
-        del cfg["coeff_mask"]
-        del cfg["l1_regularization"]
-        cfg["trainable_coeffs"] = 5 * (cfg["meta_mlp_layer_sizes"][1]) + 1
+        cfg["coeff_mask"] = "N/A"
+        cfg["l1_regularization"] = "N/A"
+        cfg["trainable_coeffs"] = 6 * (cfg["meta_mlp_layer_sizes"][1]) + 1
     if cfg["plasticity_model"] == "volterra":
         assert cfg.plasticity_coeff_init in [
             "random",
             "zeros",
         ], "only random or zeros plasticity coeff init for volterra supported!"
     if "neural" not in cfg["fit_data"]:
-        del cfg["neural_recording_sparsity"]
-        del cfg["measurement_noise_scale"]
+        cfg["neural_recording_sparsity"] = "N/A"
+        cfg["measurement_noise_scale"] = "N/A"
     return cfg
