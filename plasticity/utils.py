@@ -125,15 +125,6 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
 def save_logs(cfg, df):
     logdata_path = Path(cfg.log_dir)
     if cfg.log_expdata:
-
-        def is_file_open(file_path):
-            try:
-                with open(file_path, "a") as file:
-                    pass
-            except IOError:
-                return True
-            return False
-
         if cfg.use_experimental_data:
             logdata_path = (
                 logdata_path / "expdata" / cfg.exp_name / cfg.plasticity_model
@@ -144,18 +135,21 @@ def save_logs(cfg, df):
             )
 
         logdata_path.mkdir(parents=True, exist_ok=True)
-        csv_file = logdata_path / f"exp_{cfg.flyid}.csv"
-        tries = 0
+        csv_file = logdata_path / f"exp_{cfg.expid}.csv"
         write_header = not csv_file.exists()
-        while is_file_open(csv_file):
-            tries += 1
-            print(
-                f"File is currently being written to by another program. Try: {tries}"
-            )
+
+        # Use a lock file to synchronize access to the CSV file
+        lock_file = csv_file.with_suffix(".lock")
+        while lock_file.exists():
+            print(f"Waiting for lock on {csv_file}...")
             time.sleep(random.uniform(1, 5))
 
-        df.to_csv(csv_file, mode="a", header=write_header, index=False)
-        print("saved logs!")
+        try:
+            lock_file.touch()
+            df.to_csv(csv_file, mode="a", header=write_header, index=False)
+            print(f"Saved logs to {csv_file}")
+        finally:
+            lock_file.unlink()
 
     return logdata_path
 
@@ -212,6 +206,7 @@ def validate_config(cfg):
         cfg["l1_regularization"] = "N/A"
         cfg["trainable_coeffs"] = 6 * (cfg["meta_mlp_layer_sizes"][1]) + 1
     if cfg["plasticity_model"] == "volterra":
+        assert cfg["log_mlp_plasticity"] == False, "log_mlp_plasticity must be False for volterra plasticity!"
         assert cfg.plasticity_coeff_init in [
             "random",
             "zeros",
