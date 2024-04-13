@@ -16,7 +16,7 @@ import sys
 def train(cfg):
     cfg = utils.validate_config(cfg)
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
-    key = jax.random.PRNGKey(cfg.flyid)
+    key = jax.random.PRNGKey(cfg.expid)
     key, subkey = split(key)
     plasticity_coeff, plasticity_func = synapse.init_plasticity(
         subkey, cfg, mode="plasticity_model"
@@ -45,7 +45,7 @@ def train(cfg):
     optimizer = optax.adam(learning_rate=1e-3)
     opt_state = optimizer.init(plasticity_coeff)
     expdata = {}
-    noise_key = jax.random.PRNGKey(10 * cfg.flyid)
+    noise_key = jax.random.PRNGKey(10 * cfg.expid)
     for epoch in range(cfg.num_epochs + 1):
         for exp_i in decisions:
             noise_key, _ = split(noise_key)
@@ -105,6 +105,6 @@ def train(cfg):
     # pd.set_option("display.max_columns", None)
     print(df.tail(5))
     logdata_path = utils.save_logs(cfg, df)
-    if cfg.plasticity_model == "mlp" and cfg.log_expdata:
-        with open(logdata_path / f"mlp_params_{cfg.flyid}.pkl", "wb") as f:
+    if cfg.plasticity_model == "mlp" and cfg.log_mlp_plasticity:
+        with open(logdata_path / f"mlp_params_{cfg.expid}.pkl", "wb") as f:
             pickle.dump(mlp_params, f)
