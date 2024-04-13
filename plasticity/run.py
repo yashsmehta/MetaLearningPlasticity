@@ -5,12 +5,12 @@ import numpy as np
 
 if __name__ == "__main__":
     # coeff_mask is used to vary the trainable parameters in the taylor series.
-    # so coeff_mask[:,:,0] = 1, would pass the gradients through only term in the taylor series without weight dependence (since W^0)
+    # [x, y, w, r]
     coeff_mask = np.zeros((3, 3, 3, 3))
     coeff_mask[:, :, :, :] = 1
 
     cfg_dict = {
-        "num_train": 1,  # number of trajectories in the training set. each simulated one with different initial weights.
+        "num_train": 5,  # number of trajectories in the training set. each simulated one with different initial weights.
         "num_eval": 10,
         "num_epochs": 250,
         "trials_per_block": 80,  # total length of trajectory is number of blocks * trails per block
@@ -20,11 +20,11 @@ if __name__ == "__main__":
             (0.9, 0.1),
             (0.2, 0.8),
         ),  # A:B reward probabilities for corresponding to each block
-        "log_expdata": True,  # flag to save the training data
+        "log_expdata": False,  # flag to save the training data
         "log_interval": 25,  # log training data every x epochs
         "use_experimental_data": False,  # use simulated or experimental data
-        "flyid": 1,  # flyid saved for parallel runs on cluster
-        "fit_data": "behavior",  # code searches for words: "neural", "behavior", corresponding to fitting on neural activity recordings or binary behavioral choices
+        "expid": 1,  # flyid saved for parallel runs on cluster
+        "fit_data": "neural",  # code searches for words: "neural", "behavior", corresponding to fitting on neural activity recordings or binary behavioral choices
         "neural_recording_sparsity": 1.0,  # sparsity of 1. means all neurons are recorded
         "measurement_noise_scale": 0.0,  # scale of gaussian noise added to neural recordings would be measurement_noise * firing_rate
         "layer_sizes": "[2, 10, 1]",  # network [input_dim, hidden_dim, output_dim], only 2, 3 layer network supported, since we're modeling plasticity in a single layer
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         "generation_coeff_init": "X1Y0R1W0",  # simulated data underlying rule, integers are the corresponding powers, so X1R1W0 would be XR.
         "generation_model": "volterra",  # "volterra" (this just means taylor, it's called volterra in the code, to be consistent with prior literature) or "mlp"
         "plasticity_coeff_init": "random",  # initializations for the parameters of the plasticity rule, "random" or "zeros"
-        "plasticity_model": "mlp",  # "volterra" or "mlp (what is the functional family of the plasticity model)
+        "plasticity_model": "volterra",  # "volterra" or "mlp (what is the functional family of the plasticity model)
         "meta_mlp_layer_sizes": [
             4,
             10,
