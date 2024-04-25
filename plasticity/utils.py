@@ -182,6 +182,7 @@ def validate_config(cfg):
     assert (
         cfg.neural_recording_sparsity >= 0.0 and cfg.neural_recording_sparsity <= 1.0
     ), "neural recording sparsity must be between 0 and 1!"
+    assert cfg.device in ["cpu", "gpu"], "device must be cpu or gpu!"
     if cfg.plasticity_model == "mlp":
         assert cfg.plasticity_coeff_init in [
             "random"

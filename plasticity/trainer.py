@@ -24,7 +24,10 @@ def train(cfg):
 
     params = model.initialize_params(key, cfg)
 
-    # are we running on CPU or GPU?
+    try:
+        jax.config.update("jax_platform_name", cfg.device)
+    except:
+        pass
     device = jax.lib.xla_bridge.get_backend().platform
     print("platform: ", device)
     print(f"layer sizes: {cfg.layer_sizes}")

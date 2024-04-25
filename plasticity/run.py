@@ -12,7 +12,7 @@ if __name__ == "__main__":
     cfg_dict = {
         "num_train": 5,  # number of trajectories in the training set. each simulated one with different initial weights.
         "num_eval": 10,
-        "num_epochs": 250,
+        "num_epochs": 25,
         "trials_per_block": 80,  # total length of trajectory is number of blocks * trails per block
         "num_blocks": 3,  # each block can have different reward probabilities/ratios for the odors
         "reward_ratios": (
@@ -24,6 +24,7 @@ if __name__ == "__main__":
         "log_interval": 25,  # log training data every x epochs
         "use_experimental_data": False,  # use simulated or experimental data
         "expid": 1,  # flyid saved for parallel runs on cluster
+        "device": "cpu",
         "fit_data": "neural",  # code searches for words: "neural", "behavior", corresponding to fitting on neural activity recordings or binary behavioral choices
         "neural_recording_sparsity": 1.0,  # sparsity of 1. means all neurons are recorded
         "measurement_noise_scale": 0.0,  # scale of gaussian noise added to neural recordings would be measurement_noise * firing_rate
