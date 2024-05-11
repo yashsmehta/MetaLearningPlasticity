@@ -1,4 +1,4 @@
-from plasticity.utils import generate_gaussian
+from plasticity.utils import generate_gaussian, standardize_coeff_init
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -151,6 +151,7 @@ def init_plasticity(key, cfg, mode):
     """
     if "generation" in mode:
         if cfg.generation_model == "volterra":
+            cfg.generation_coeff_init = standardize_coeff_init(cfg.generation_coeff_init)
             return init_generation_volterra(init=cfg.generation_coeff_init)
         elif cfg.generation_model == "mlp":
             return init_plasticity_mlp(key, cfg.meta_mlp_layer_sizes)

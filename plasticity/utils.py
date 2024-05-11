@@ -1,4 +1,5 @@
 import jax
+import re
 import jax.numpy as jnp
 from jax import vmap
 import numpy as np
@@ -216,3 +217,20 @@ def validate_config(cfg):
         cfg["neural_recording_sparsity"] = "N/A"
         cfg["measurement_noise_scale"] = "N/A"
     return cfg
+
+
+def standardize_coeff_init(coeff_init):
+    terms = re.split(r'(?=[+-])', coeff_init)
+    formatted_terms = []
+    for term in terms:
+        var_dict = {'X': 0, 'Y': 0, 'W': 0, 'R': 0}
+        number_prefix = re.match(r'[+-]?\d*\.?\d*', term).group(0)
+        parts = re.findall(r'([+-]?\d*\.?\d*)([XYWR])(\d*)', term)
+        for _, var, power in parts:
+            power = int(power) if power else 1
+            var_dict[var] = power
+        formatted_term = number_prefix + ''.join([f"{key}{val}" for key, val in var_dict.items()])
+        formatted_terms.append(formatted_term)
+
+    standardized_coeff_init = ''.join(formatted_terms)
+    return standardized_coeff_init
