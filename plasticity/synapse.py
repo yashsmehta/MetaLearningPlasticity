@@ -1,35 +1,39 @@
-from plasticity.utils import generate_gaussian
+from plasticity.utils import generate_gaussian, standardize_coeff_init
 import jax
 import jax.numpy as jnp
 import numpy as np
 import re
 
 
-def volterra_synapse_tensor(x, y, z):
+def volterra_synapse_tensor(x, y, w, r):
     """
     Functionality: Computes the Volterra synapse tensor for given inputs.
-    Inputs: x, y, z (floats): Inputs to the Volterra synapse tensor.
-    Returns: A 3x3x3 tensor representing the Volterra synapse tensor.
+    Inputs: x, y, w, r (floats): Inputs to the Volterra synapse tensor.
+    Returns: A 3x3x3x3 tensor representing the Volterra synapse tensor.
     """
-    synapse_tensor = jnp.outer(
-        jnp.outer(
-            jnp.array([x**0, x**1, x**2]),
-            jnp.array([y**0, y**1, y**2]),
-        ),
-        jnp.array([z**0, z**1, z**2]),
+    synapse_tensor = jnp.array(
+        [
+            [
+                [
+                    [x**i * y**j * w**k * r**l for i in range(3)]
+                    for j in range(3)
+                ]
+                for k in range(3)
+            ]
+            for l in range(3)
+        ]
     )
-    synapse_tensor = jnp.reshape(synapse_tensor, (3, 3, 3))
     return synapse_tensor
 
 
-def volterra_plasticity_function(x, y, z, volterra_coefficients):
+def volterra_plasticity_function(x, y, w, r, volterra_coefficients):
     """
     Functionality: Computes the Volterra plasticity function for given inputs and coefficients.
-    Inputs: x, y, z (floats): Inputs to the Volterra plasticity function.
+    Inputs: x, y, w, r (floats): Inputs to the Volterra plasticity function.
             volterra_coefficients (array): Coefficients for the Volterra plasticity function.
     Returns: The result of the Volterra plasticity function.
     """
-    synapse_tensor = volterra_synapse_tensor(x, y, z)
+    synapse_tensor = volterra_synapse_tensor(x, y, w, r)
     dw = jnp.sum(jnp.multiply(volterra_coefficients, synapse_tensor))
     return dw
 
@@ -50,25 +54,25 @@ def mlp_forward_pass(mlp_params, inputs):
     return jnp.squeeze(output)
 
 
-def mlp_plasticity_function(x, y, z, mlp_params):
+def mlp_plasticity_function(x, y, w, r, mlp_params):
     """
     Functionality: Computes the MLP plasticity function for given inputs and MLP parameters.
     Inputs: x, y, z (floats): Inputs to the MLP plasticity function.
             mlp_params (list): MLP parameters.
     Returns: The result of the MLP plasticity function.
     """
-    inputs = jnp.array([x, y, z])
+    inputs = jnp.array([x, y, w, r])
     dw = mlp_forward_pass(mlp_params, inputs)
     return dw
 
 
 def init_zeros():
-    return np.zeros((3, 3, 3))
+    return np.zeros((3, 3, 3, 3))
 
 
 def init_random(key):
     assert key is not None, "For random initialization, a random key has to be given"
-    return generate_gaussian(key, (3, 3, 3), scale=1e-5)
+    return generate_gaussian(key, (3, 3, 3, 3), scale=1e-5)
 
 
 def split_init_string(s):
@@ -91,12 +95,13 @@ def extract_numbers(s):
     Returns: A tuple of extracted numbers.
     """
     x = int(re.search("X(\d+)", s).group(1))
-    y_or_r = int(re.search("[YR](\d+)", s).group(1))
+    y = int(re.search("Y(\d+)", s).group(1))
     w = int(re.search("W(\d+)", s).group(1))
+    r = int(re.search("R(\d+)", s).group(1))
     multiplier_match = re.search("^(-?\d+\.?\d*)", s)
     multiplier = float(multiplier_match.group(1)) if multiplier_match else 1.0
-    assert x < 3 and y_or_r < 3 and w < 3, "X, Y/R and W must be between 0 and 2"
-    return x, y_or_r, w, multiplier
+    assert x < 3 and y < 3 and w < 3 and r < 3, "X, Y, W, R must be between 0 and 2"
+    return x, y, w, r, multiplier
 
 
 def init_generation_volterra(init):
@@ -105,11 +110,11 @@ def init_generation_volterra(init):
     Inputs: init (str): Initialization string.
     Returns: A tuple containing the initialized parameters and the Volterra plasticity function.
     """
-    parameters = np.zeros((3, 3, 3))
+    parameters = np.zeros((3, 3, 3, 3))
     inits = split_init_string(init)
     for init in inits:
-        x, y_or_r, w, multiplier = extract_numbers(init)
-        parameters[x][y_or_r][w] = multiplier
+        x, y, w, r, multiplier = extract_numbers(init)
+        parameters[x][y][w][r] = multiplier
 
     return jnp.array(parameters), volterra_plasticity_function
 
@@ -146,6 +151,7 @@ def init_plasticity(key, cfg, mode):
     """
     if "generation" in mode:
         if cfg.generation_model == "volterra":
+            cfg.generation_coeff_init = standardize_coeff_init(cfg.generation_coeff_init)
             return init_generation_volterra(init=cfg.generation_coeff_init)
         elif cfg.generation_model == "mlp":
             return init_plasticity_mlp(key, cfg.meta_mlp_layer_sizes)

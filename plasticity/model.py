@@ -76,7 +76,8 @@ def simulate(
     trial_lengths,
 ):
     """Simulate an experiment with given plasticity coefficients,
-       vmap over timesteps within a trial, and scan over all trials
+       scan over timesteps within a trial, and vmap over the neurons
+       (m,n) in plasticity layer (i.e. first layer)
     Inputs:
         initial_params (list): Initial parameters for the network.
         plasticity_coeffs (array): Array of plasticity coefficients.
@@ -126,6 +127,7 @@ def network_step(
 ):
     """Performs a forward pass and weight update
         Forward pass is needed to compute logits for the loss function
+        for calculating the activations, vmap over all inputs within the trial
     Returns:
         updated params, and stacked: params, logits
     """
@@ -167,14 +169,14 @@ def update_params(
 
     delta_params = []
 
-    # plasticity happens in the first layer only
-    activation = activations[0]
+    xs = activations[0]
+    ys = activations[1]
     w, b = params[0]
     # vmap over output neurons
-    vmap_inputs = jax.vmap(plasticity_func, in_axes=(None, None, 0, None))
+    vmap_inputs = jax.vmap(plasticity_func, in_axes=(None, 0, 0, None, None))
     # vmap over input neurons
-    vmap_synapses = jax.vmap(vmap_inputs, in_axes=(0, None, 0, None))
-    dw = vmap_synapses(activation, reward_term, w, plasticity_coeffs)
+    vmap_synapses = jax.vmap(vmap_inputs, in_axes=(0, None, 0, None, None))
+    dw = vmap_synapses(xs, ys, w, reward_term, plasticity_coeffs)
     # decide whether to update bias or not
     db = jnp.zeros_like(b)
     # db = vmap_inputs(1.0, reward_term, b, plasticity_coeffs)
@@ -287,12 +289,12 @@ def evaluate(
     print(f"r2 score: {r2_score}")
     print(f"percent deviance: {percent_deviance}")
     try:
-        percent_deviance = mean(percent_deviance)
-        print("mean percent deviance: ", percent_deviance)
-        r2_score["weights"] = mean(r2_score["weights"])
-        print("mean r2 weights: ", r2_score["weights"])
-        r2_score["activity"] = mean(r2_score["activity"])
-        print("mean r2 activity: ", r2_score["activity"])
+        percent_deviance = np.median(percent_deviance)
+        print("median percent deviance: ", percent_deviance)
+        r2_score["weights"] = np.median(r2_score["weights"])
+        print("median r2 weights: ", r2_score["weights"])
+        r2_score["activity"] = np.median(r2_score["activity"])
+        print("median r2 activity: ", r2_score["activity"])
     except:
         pass
     return r2_score, percent_deviance

@@ -63,7 +63,7 @@ def generate_experiments_data(key, cfg, plasticity_coeff, plasticity_func, mode)
     print("generating experiments data...")
 
     for exp_i in range(num_experiments):
-        seed = (cfg.flyid + 1) * (exp_i + 1)
+        seed = (cfg.expid + 1) * (exp_i + 1)
         odor_mus, odor_sigmas = inputs.generate_input_parameters(seed, cfg)
         exp_i = str(exp_i)
         key, subkey = split(key)
@@ -285,7 +285,7 @@ def load_fly_expdata(key, cfg, mode):
         num_sampling = cfg.num_eval
     for sample_i in range(num_sampling):
         key, _ = split(key)
-        file = f"Fly{cfg.flyid}.mat"
+        file = f"Fly{cfg.expid}.mat"
         odor_mus, odor_sigmas = inputs.generate_input_parameters(seed=sample_i, cfg=cfg)
         sample_i = str(sample_i)
         data = sio.loadmat(cfg.data_dir + file)
