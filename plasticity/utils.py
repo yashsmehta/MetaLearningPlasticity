@@ -124,6 +124,12 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
 
 
 def save_logs(cfg, df):
+    local_random = random.Random()
+    local_random.seed(os.urandom(10))
+    sleep_duration = local_random.uniform(1, 5)
+    time.sleep(sleep_duration)
+    print(f"Slept for {sleep_duration:.2f} seconds.")
+    
     logdata_path = Path(cfg.log_dir)
     if cfg.log_expdata:
         if cfg.use_experimental_data:
