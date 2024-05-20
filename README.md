@@ -57,9 +57,9 @@ This project is organized as follows:
 
 ### Citing
 ```bibtex
-@misc{metalearn-plasticity-2023,
+@misc{metalearn-plasticity-2024,
   title={Model based inference of synaptic plasticity rules}, 
   author={}, 
-  year={2023}, publisher={GitHub},
+  year={2024}, publisher={GitHub},
   howpublished={\url{}} }
 ```
