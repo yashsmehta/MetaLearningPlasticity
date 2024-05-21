@@ -5,9 +5,20 @@ import numpy as np
 
 def generate_input_parameters(seed, cfg):
     """
-    return the mus and sigmas tensors, with some mean, and variance
+    Generates input parameters for a neural network model.
+
+    Args:
+        seed (int): Seed for the random number generator to ensure reproducibility.
+        cfg (object): Configuration object containing model settings, including:
+            - layer_sizes (list): List of integers representing the sizes of each layer in the network.
+            - input_firing_mean (float): Mean firing rate for the input neurons.
+            - input_variance (float): Variance for the input neurons.
+
+    Returns:
+        tuple: A tuple containing:
+            - mus (jax.numpy.ndarray): A 2D array of shape (2, input_dim) representing the mean firing rates for two different odors.
+            - sigmas (jax.numpy.ndarray): A 3D array of shape (2, input_dim, input_dim) representing the variances for two different odors.
     """
-    # for now, this is hardcoded to 2 odors
     np.random.seed(seed)
     num_odors = 2
     input_dim = cfg.layer_sizes[0]
@@ -32,11 +43,20 @@ def generate_input_parameters(seed, cfg):
 
 
 def sample_inputs(key, mus, sigmas, odor):
+    """
+    Samples input data for a given odor using specified mean and variance.
+
+    Args:
+        key (jax.random.PRNGKey): Random key for generating random numbers.
+        mus (jax.numpy.ndarray): 2D array of shape (num_odors, input_dim) representing the mean firing rates for different odors.
+        sigmas (jax.numpy.ndarray): 3D array of shape (num_odors, input_dim, input_dim) representing the variances for different odors.
+        odor (int): Index of the odor to sample inputs for.
+
+    Returns:
+        jax.numpy.ndarray: Sampled input data of shape (input_dim,).
+    """
     input_dim = mus.shape[1]
     x = jax.random.normal(key, shape=(input_dim,))
-
-    # shift and scale according to mus[odor]
     x = x @ sigmas[odor]
     x = x + mus[odor]
-
     return x

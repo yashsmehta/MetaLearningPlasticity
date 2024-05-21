@@ -120,6 +120,18 @@ def init_generation_volterra(init):
 
 
 def init_plasticity_volterra(key, init):
+    """
+    Initializes the parameters for the Volterra plasticity model.
+
+    Args:
+        key (jax.random.PRNGKey): Random key for generating random numbers.
+        init (str): Initialization method, either "zeros" or "random".
+
+    Returns:
+        tuple: A tuple containing:
+            - jax.numpy.ndarray: Initialized parameters.
+            - function: The Volterra plasticity function.
+    """
     init_functions = {
         "zeros": init_zeros,
         "random": lambda: init_random(key),
@@ -130,7 +142,19 @@ def init_plasticity_volterra(key, init):
 
 
 def init_plasticity_mlp(key, layer_sizes, scale=0.01):
+    """
+    Initializes the parameters for a multi-layer perceptron (MLP) plasticity model.
 
+    Args:
+        key (jax.random.PRNGKey): Random key for generating random numbers.
+        layer_sizes (list of int): List of integers representing the sizes of each layer in the MLP.
+        scale (float, optional): Scale for the Gaussian distribution used to initialize the parameters. Default is 0.01.
+
+    Returns:
+        tuple: A tuple containing:
+            - list of tuples: Each tuple contains the weights and biases for a layer in the MLP.
+            - function: The MLP plasticity function.
+    """
     mlp_params = [
         (
             generate_gaussian(key, (m, n), scale),
@@ -151,7 +175,9 @@ def init_plasticity(key, cfg, mode):
     """
     if "generation" in mode:
         if cfg.generation_model == "volterra":
-            cfg.generation_coeff_init = standardize_coeff_init(cfg.generation_coeff_init)
+            cfg.generation_coeff_init = standardize_coeff_init(
+                cfg.generation_coeff_init
+            )
             return init_generation_volterra(init=cfg.generation_coeff_init)
         elif cfg.generation_model == "mlp":
             return init_plasticity_mlp(key, cfg.meta_mlp_layer_sizes)

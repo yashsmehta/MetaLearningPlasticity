@@ -94,8 +94,9 @@ def loss(
     cfg,
 ):
     """
-    Functionality: Computes the total loss for the model.
-    Inputs:
+    Computes the total loss for the model.
+
+    Args:
         key (int): Seed for the random number generator.
         params (array): Array of parameters.
         plasticity_coeff (array): Array of plasticity coefficients.
@@ -106,13 +107,14 @@ def loss(
         neural_recordings (array): Array of neural recordings.
         decisions (array): Array of decisions.
         cfg (object): Configuration object containing the model settings.
-    Returns: Loss for the cross entropy model.
+
+    Returns:
+        float: Loss for the cross entropy model.
     """
     loss = 0.0
     if cfg.plasticity_model == "volterra":
         coeff_mask = jnp.array(cfg.coeff_mask)
         plasticity_coeff = jnp.multiply(plasticity_coeff, coeff_mask)
-        # add L1 regularization only for volterra model plasticity coefficients
         loss = cfg.l1_regularization * jnp.sum(jnp.abs(plasticity_coeff))
 
     trial_lengths = data_loader.get_trial_lengths(decisions)
@@ -128,11 +130,9 @@ def loss(
     logits = jnp.squeeze(activations[-1])
 
     logits_mask = data_loader.get_logits_mask(decisions)
-    # mask out the logits after the trial length
     logits = jnp.multiply(logits, logits_mask)
     decisions = jnp.nan_to_num(decisions, copy=False, nan=0.0)
 
-    # add neural activity MSE loss
     if "neural" in cfg.fit_data:
         neural_loss = neural_mse_loss(
             key,
@@ -143,7 +143,7 @@ def loss(
             activations,
         )
         loss += neural_loss
-    # add behavior cross entropy loss
+
     if "behavior" in cfg.fit_data:
         behavior_loss = behavior_ce_loss(decisions, logits)
         loss += behavior_loss

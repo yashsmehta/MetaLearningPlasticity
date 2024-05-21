@@ -14,6 +14,15 @@ import sys
 
 
 def train(cfg):
+    """
+    Trains a neural network model based on the provided configuration.
+
+    Args:
+        cfg (object): Configuration object containing model settings and hyperparameters.
+
+    Returns:
+        None
+    """
     cfg = utils.validate_config(cfg)
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
     key = jax.random.PRNGKey(cfg.expid)
@@ -105,7 +114,6 @@ def train(cfg):
             df[key] = value
     df["layer_sizes"] = str(cfg.layer_sizes)
 
-    # pd.set_option("display.max_columns", None)
     print(df.tail(5))
     logdata_path = utils.save_logs(cfg, df)
     if cfg.plasticity_model == "mlp" and cfg.log_mlp_plasticity:
