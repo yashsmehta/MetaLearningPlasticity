@@ -7,6 +7,8 @@ import collections
 import scipy.io as sio
 import os
 from functools import partial
+import logging
+from typing import Any, Dict, Tuple
 
 import plasticity.model as model
 import plasticity.inputs as inputs
@@ -14,6 +16,7 @@ import plasticity.synapse as synapse
 from plasticity.utils import experiment_list_to_tensor
 from plasticity.utils import create_nested_list
 
+logger = logging.getLogger(__name__)
 
 def load_data(key, cfg, mode="train"):
     """
@@ -264,75 +267,95 @@ def expected_reward_for_exp_data(R, moving_avg_window):
     return np.array(expected_rewards)
 
 
-def load_fly_expdata(key, cfg, mode):
+def load_fly_expdata(
+    key: Any, cfg: Any, mode: str
+) -> Tuple[Dict[int, np.ndarray], Dict[int, Any], Dict[int, np.ndarray], Dict[int, np.ndarray], Dict[int, np.ndarray]]:
     """
-    Functionality: Load experimental data for training or evaluation.
-    Inputs:
-        key (int): Seed for the random number generator.
-        cfg (object): Configuration object containing the model settings.
+    Load experimental data for training or evaluation.
+
+    Args:
+        key (Any): Random number generator key or seed.
+        cfg (Any): Configuration object containing the model settings.
         mode (str): Mode of operation ("train" or "eval").
-    Returns: 5 dictionaries corresponding with experiment number (int) as key, with tensors as values.
+
+    Returns:
+        Tuple[Dict[int, np.ndarray], ...]: Dictionaries for xs, neural_recordings, decisions, rewards, expected_rewards.
     """
-    print(f"Loading {mode} experimental data...")
+    logger.info(f"Loading {mode} experimental data...")
 
-    xs, neural_recordings, decisions, rewards, expected_rewards = {}, {}, {}, {}, {}
+    xs: Dict[int, np.ndarray] = {}
+    neural_recordings: Dict[int, Any] = {}
+    decisions: Dict[int, np.ndarray] = {}
+    rewards: Dict[int, np.ndarray] = {}
+    expected_rewards: Dict[int, np.ndarray] = {}
+
     max_exp_id = 18  # Total number of fly data files
-
     input_dim = cfg.layer_sizes[0]
-    if mode == "train":
-        num_sampling = cfg.num_train
-    else:
-        num_sampling = cfg.num_eval
-    for sample_i in range(num_sampling):
+    num_sampling = cfg.num_train if mode == "train" else cfg.num_eval
+
+    for sample_idx in range(num_sampling):
         key, subkey = split(key)
-        file_number = ((cfg.expid + sample_i - 1) % max_exp_id) + 1
-        file = f"Fly{file_number}.mat"
+        file_number = ((cfg.expid + sample_idx - 1) % max_exp_id) + 1
+        file_name = f"Fly{file_number}.mat"
+        file_path = os.path.join(cfg.data_dir, file_name)
+
         odor_mus, odor_sigmas = inputs.generate_input_parameters(key, cfg)
-        sample_i = str(sample_i)
-        data = sio.loadmat(cfg.data_dir + file)
-        print(f"File {file}, loading sample id {sample_i}")
-        odor_ids, Y, R = data["X"], data["Y"], data["R"]
+        logger.info(f"File {file_name}, loading sample id {sample_idx}")
+
+        try:
+            data = sio.loadmat(file_path)
+        except FileNotFoundError:
+            logger.error(f"File not found: {file_path}")
+            continue
+
+        odor_ids = data.get("X")
+        Y = np.squeeze(data.get("Y"))
+        R = np.squeeze(data.get("R"))
+
+        if odor_ids is None or Y is None or R is None:
+            logger.error(f"Data missing in file: {file_path}")
+            continue
+
         odors = np.where(odor_ids == 1)[1]
-        Y = np.squeeze(Y)
-        R = np.squeeze(R)
-        num_trials = np.sum(Y)
-        assert num_trials == R.shape[0], "Y and R should have the same number of trials"
+        num_trials = int(np.sum(Y))
+        if num_trials != R.shape[0]:
+            logger.error("Y and R should have the same number of trials")
+            continue
 
-        # remove last element, and append left to get indices.
-        indices = np.cumsum(Y)
-        indices = np.insert(indices, 0, 0)
-        indices = np.delete(indices, -1)
+        # Compute the starting index for each trial
+        indices = np.insert(np.cumsum(Y), 0, 0)[:-1].astype(int)
 
+        # Initialize lists to collect decisions and inputs per trial
         exp_decisions = [[] for _ in range(num_trials)]
         exp_xs = [[] for _ in range(num_trials)]
 
-        for index, decision, odor in zip(indices, Y, odors):
-            exp_decisions[index].append(decision)
+        for idx, decision, odor in zip(indices, Y, odors):
+            exp_decisions[idx].append(decision)
             x = inputs.sample_inputs(subkey, odor_mus, odor_sigmas, odor)
-            exp_xs[index].append(x)
+            exp_xs[idx].append(x)
 
-        trial_lengths = [len(exp_decisions[i]) for i in range(num_trials)]
-        max_trial_length = np.max(np.array(trial_lengths))
-        print(f"Max trial length: {max_trial_length}")
-        d_tensor = np.full((num_trials, max_trial_length), np.nan)
-        for i in range(num_trials):
-            for j in range(trial_lengths[i]):
-                d_tensor[i][j] = exp_decisions[i][j]
-        decisions[sample_i] = d_tensor
+        trial_lengths = [len(trial) for trial in exp_decisions]
+        max_trial_length = max(trial_lengths)
+        logger.info(f"Max trial length for sample {sample_idx}: {max_trial_length}")
 
-        xs_tensor = np.full((num_trials, max_trial_length, input_dim), 0.0)
-        for i in range(num_trials):
-            for j in range(trial_lengths[i]):
-                xs_tensor[i][j] = exp_xs[i][j]
-        xs[sample_i] = xs_tensor
+        # Prepare tensors for decisions and inputs
+        decisions_tensor = np.full((num_trials, max_trial_length), np.nan)
+        xs_tensor = np.zeros((num_trials, max_trial_length, input_dim))
 
-        rewards[sample_i] = R
-        expected_rewards[sample_i] = expected_reward_for_exp_data(
-            R, cfg.moving_avg_window
-        )
-        neural_recordings[sample_i] = None
+        for i, (decisions_list, xs_list) in enumerate(zip(exp_decisions, exp_xs)):
+            length = len(decisions_list)
+            decisions_tensor[i, :length] = decisions_list
+            xs_tensor[i, :length, :] = xs_list
+
+        # Store data in dictionaries
+        decisions[str(sample_idx)] = decisions_tensor
+        xs[str(sample_idx)] = xs_tensor
+        rewards[str(sample_idx)] = R
+        expected_rewards[str(sample_idx)] = expected_reward_for_exp_data(R, cfg.moving_avg_window)
+        neural_recordings[str(sample_idx)] = None
 
     return xs, neural_recordings, decisions, rewards, expected_rewards
+
 
 def get_trial_lengths(decisions):
     """
