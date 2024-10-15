@@ -20,9 +20,9 @@ import plasticity.utils as utils
 
 def setup_environment(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """Set up the environment based on the configuration."""
+    utils.setup_logging(level=logging.INFO)
     cfg = utils.validate_config(cfg)
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
-    utils.setup_logging(level=logging.INFO)
     try:
         jax.config.update("jax_platform_name", cfg['device'])
     except Exception as e:

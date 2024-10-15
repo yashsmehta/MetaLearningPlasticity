@@ -1,7 +1,6 @@
 import jax
 import re
 import jax.numpy as jnp
-from jax import vmap
 import numpy as np
 from scipy.special import kl_div
 from pathlib import Path
@@ -248,86 +247,109 @@ def save_logs(cfg: Any, df: DataFrame) -> Path:
     return logdata_path
 
 
-def validate_config(cfg):
+def validate_config(cfg: Any) -> Any:
     """
     Validates and processes the configuration object.
 
     Args:
-        cfg (object): Configuration object containing model settings and paths.
+        cfg: Configuration object containing model settings and paths.
 
     Returns:
-        object: The validated and processed configuration object.
+        The validated and processed configuration object.
 
     Raises:
-        AssertionError: If any of the configuration validations fail.
+        ValueError: If any of the configuration validations fail.
     """
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+
+    # Convert layer_sizes from string to list if necessary
     if isinstance(cfg.layer_sizes, str):
         cfg.layer_sizes = ast.literal_eval(cfg.layer_sizes)
-        print("passed layer sizes as string, converted to list")
+        logging.info("Converted layer_sizes from string to list.")
 
-    assert (
-        len(cfg.reward_ratios) == cfg.num_blocks
-    ), "length of reward ratios should be equal to number of blocks!"
-    assert cfg.plasticity_model in [
-        "volterra",
-        "mlp",
-    ], "only volterra, mlp plasticity model supported!"
-    assert cfg.generation_model in [
-        "volterra",
-        "mlp",
-    ], "only volterra, mlp generation model supported!"
-    assert (
-        cfg.meta_mlp_layer_sizes[0] == 4 and cfg.meta_mlp_layer_sizes[-1] == 1
-    ), "meta mlp input dim must be 4, and output dim 1!"
-    assert cfg.layer_sizes[-1] == 1, "output dim must be 1!"
-    assert (
-        len(cfg.layer_sizes) == 2 or len(cfg.layer_sizes) == 3
-    ), "only 2, 3 layer networks supported!"
+    # Validate reward_ratios length
+    if len(cfg.reward_ratios) != cfg.num_blocks:
+        raise ValueError("Length of reward_ratios should be equal to num_blocks!")
+
+    # Validate plasticity_model
+    if cfg.plasticity_model not in ["volterra", "mlp"]:
+        raise ValueError("Only 'volterra' and 'mlp' plasticity models are supported!")
+
+    # Validate generation_model
+    if cfg.generation_model not in ["volterra", "mlp"]:
+        raise ValueError("Only 'volterra' and 'mlp' generation models are supported!")
+
+    # Validate meta_mlp_layer_sizes
+    if not (cfg.meta_mlp_layer_sizes[0] == 4 and cfg.meta_mlp_layer_sizes[-1] == 1):
+        raise ValueError("meta_mlp_layer_sizes must start with 4 and end with 1!")
+
+    # Validate output dimension
+    if cfg.layer_sizes[-1] != 1:
+        raise ValueError("Output dimension (last element of layer_sizes) must be 1!")
+
+    # Validate number of layers
+    if len(cfg.layer_sizes) not in [2, 3]:
+        raise ValueError("Only 2 or 3 layer networks are supported!")
+
+    # Validate neural_recording_sparsity if fitting neural data
     if "neural" in cfg.fit_data:
-        assert (
-            cfg.neural_recording_sparsity >= 0.0 and cfg.neural_recording_sparsity <= 1.0
-        ), "neural recording sparsity must be between 0 and 1!"
-    assert cfg.device in ["cpu", "gpu"], "device must be cpu or gpu!"
+        if not (0.0 <= cfg.neural_recording_sparsity <= 1.0):
+            raise ValueError("neural_recording_sparsity must be between 0 and 1!")
 
+    # Validate device
+    if cfg.device not in ["cpu", "gpu"]:
+        raise ValueError("Device must be 'cpu' or 'gpu'!")
+
+    # Validate plasticity_coeff_init for MLP
     if cfg.plasticity_model == "mlp":
-        assert cfg.plasticity_coeff_init in [
-            "random"
-        ], "only random plasticity coeff init for MLP supported!"
+        if cfg.plasticity_coeff_init != "random":
+            raise ValueError("Only 'random' plasticity_coeff_init is supported for MLP!")
 
-    assert (
-        "behavior" in cfg.fit_data or "neural" in cfg.fit_data
-    ), "fit data must contain either behavior or neural, or both!"
+    # Validate fit_data contains 'behavior' or 'neural'
+    if not ("behavior" in cfg.fit_data or "neural" in cfg.fit_data):
+        raise ValueError("fit_data must contain 'behavior' or 'neural', or both!")
 
+    # If using experimental data, validate related parameters
     if cfg.use_experimental_data:
         num_flies = len(os.listdir(cfg.data_dir))
-        assert (
-            cfg.expid > 0 and cfg.expid <= num_flies
-        ), f"Fly experimental data only for flyids 1-{num_flies}!"
-        assert cfg.num_blocks == 3, "all Adi's data gathering consists of 3 blocks!"
-        # assert cfg.num_train == 1, "fitting models per fly, so num_train must be 1!"
-        assert (
-            "behavior" in cfg.fit_data and "neural" not in cfg.fit_data
-        ), "only behavior experimental data available!"
-        cfg["trials_per_block"] = "N/A"
-        cfg["reward_ratios"] = "N/A"
+        if not (0 < cfg.expid <= num_flies):
+            raise ValueError(f"Fly experimental data only for fly IDs 1 to {num_flies}!")
 
-    if cfg["plasticity_model"] == "mlp":
-        cfg["coeff_mask"] = "N/A"
-        cfg["l1_regularization"] = "N/A"
-        cfg["trainable_coeffs"] = 6 * (cfg["meta_mlp_layer_sizes"][1]) + 1
+        if cfg.num_blocks != 3:
+            raise ValueError("All experimental data consists of 3 blocks!")
 
-    if cfg["plasticity_model"] == "volterra":
-        assert (
-            cfg["log_mlp_plasticity"] == False
-        ), "log_mlp_plasticity must be False for volterra plasticity!"
-        assert cfg.plasticity_coeff_init in [
-            "random",
-            "zeros",
-        ], "only random or zeros plasticity coeff init for volterra supported!"
+        # Uncomment the following lines if num_train validation is required
+        # if cfg.num_train != 1:
+        #     raise ValueError("When fitting per fly, num_train must be 1!")
 
-    if "neural" not in cfg["fit_data"]:
-        cfg["neural_recording_sparsity"] = "N/A"
-        cfg["measurement_noise_scale"] = "N/A"
+        if not ("behavior" in cfg.fit_data and "neural" not in cfg.fit_data):
+            raise ValueError("Only 'behavior' experimental data is available!")
+
+        # Set certain cfg fields to 'N/A' for experimental data
+        cfg.trials_per_block = "N/A"
+        cfg.reward_ratios = "N/A"
+
+    # Adjust cfg for 'mlp' plasticity_model
+    if cfg.plasticity_model == "mlp":
+        cfg.coeff_mask = "N/A"
+        cfg.l1_regularization = "N/A"
+        cfg.trainable_coeffs = 6 * cfg.meta_mlp_layer_sizes[1] + 1
+
+    # Validate settings for 'volterra' plasticity_model
+    if cfg.plasticity_model == "volterra":
+        if cfg.log_mlp_plasticity:
+            raise ValueError("log_mlp_plasticity must be False for 'volterra' plasticity!")
+
+        if cfg.plasticity_coeff_init not in ["random", "zeros"]:
+            raise ValueError(
+                "Only 'random' or 'zeros' plasticity_coeff_init supported for 'volterra'!"
+            )
+
+    # Adjust cfg fields if not fitting neural data
+    if "neural" not in cfg.fit_data:
+        cfg.neural_recording_sparsity = "N/A"
+        cfg.measurement_noise_scale = "N/A"
 
     return cfg
 
