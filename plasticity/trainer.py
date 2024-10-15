@@ -1,67 +1,76 @@
+import time
+import sys
+import logging
+import pickle
+from pathlib import Path
+from typing import Any, Dict, Tuple
+
+import numpy as np
+import pandas as pd
+import jax
+from jax.random import split
+import optax
+
 import plasticity.synapse as synapse
 import plasticity.data_loader as data_loader
 import plasticity.losses as losses
 import plasticity.model as model
 import plasticity.utils as utils
-import jax
-from jax.random import split
-import optax
-import numpy as np
-import pandas as pd
-import time
-import pickle
-import sys
 
 
-def train(cfg):
-    """
-    Trains a neural network model based on the provided configuration.
-
-    Args:
-        cfg (object): Configuration object containing model settings and hyperparameters.
-
-    Returns:
-        None
-    """
+def setup_environment(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Set up the environment based on the configuration."""
     cfg = utils.validate_config(cfg)
     np.set_printoptions(suppress=True, threshold=sys.maxsize)
-    key = jax.random.PRNGKey(cfg.expid)
+    utils.setup_logging(level=logging.INFO)
+    try:
+        jax.config.update("jax_platform_name", cfg['device'])
+    except Exception as e:
+        logging.warning(f"Could not set JAX platform to {cfg['device']}: {e}")
+    device = jax.lib.xla_bridge.get_backend().platform
+    logging.info(f"Platform: {device}")
+    logging.info(f"Layer sizes: {cfg['layer_sizes']}")
+    return cfg
+
+def load_data(cfg: Dict[str, Any], key: jax.random.KeyArray) -> Tuple[Any, Any, Any, Any, Any]:
+    """Load data based on the configuration."""
+    start_time = time.time()
+    data = data_loader.load_data(key, cfg)
+    duration = round(time.time() - start_time, 3)
+    logging.info(f"Loaded data in: {duration}s!")
+    resampled_xs = data[0]
+    logging.debug(f"First data sample: {resampled_xs['0'][0]}")
+    return data
+
+def initialize_parameters(
+    cfg: Dict[str, Any], key: jax.random.KeyArray
+) -> Tuple[Any, Any, Any, jax.random.KeyArray]:
+    """Initialize model parameters and plasticity coefficients."""
     key, subkey = split(key)
+    params = model.initialize_params(key, cfg)
     plasticity_coeff, plasticity_func = synapse.init_plasticity(
         subkey, cfg, mode="plasticity_model"
     )
+    return params, plasticity_coeff, plasticity_func, key
 
-    params = model.initialize_params(key, cfg)
-
-    try:
-        jax.config.update("jax_platform_name", cfg.device)
-    except:
-        pass
-    device = jax.lib.xla_bridge.get_backend().platform
-    print("platform: ", device)
-    print(f"layer sizes: {cfg.layer_sizes}")
-
-    key, subkey = split(key)
-
-    start = time.time()
-    (
-        resampled_xs,
-        neural_recordings,
-        decisions,
-        rewards,
-        expected_rewards,
-    ) = data_loader.load_data(key, cfg)
-
-    print(f"loaded data in: {round(time.time() - start, 3)}!")
+def training_loop(
+    cfg: Dict[str, Any],
+    params: Any,
+    plasticity_coeff: Any,
+    plasticity_func: Any,
+    data: Tuple[Any, Any, Any, Any, Any]
+) -> Tuple[Any, Dict[str, Any]]:
+    """Run the training loop."""
     loss_value_and_grad = jax.value_and_grad(losses.loss, argnums=2)
-    optimizer = optax.adam(learning_rate=1e-3)
+    optimizer = optax.adam(learning_rate=cfg['learning_rate'])
     opt_state = optimizer.init(plasticity_coeff)
-    expdata = {}
-    noise_key = jax.random.PRNGKey(10 * cfg.expid)
-    for epoch in range(cfg.num_epochs + 1):
+    expdata: Dict[str, Any] = {}
+    noise_key = jax.random.PRNGKey(10 * cfg['expid'])
+    resampled_xs, neural_recordings, decisions, rewards, expected_rewards = data
+
+    for epoch in range(cfg['num_epochs'] + 1):
         for exp_i in decisions:
             noise_key, _ = split(noise_key)
-
             loss, meta_grads = loss_value_and_grad(
                 noise_key,
                 params,
@@ -74,48 +83,82 @@ def train(cfg):
                 decisions[exp_i],
                 cfg,
             )
-
             updates, opt_state = optimizer.update(
                 meta_grads, opt_state, plasticity_coeff
             )
-
             plasticity_coeff = optax.apply_updates(plasticity_coeff, updates)
 
-        if epoch % cfg.log_interval == 0:
+        if epoch % cfg['log_interval'] == 0:
             expdata = utils.print_and_log_training_info(
                 cfg, expdata, plasticity_coeff, epoch, loss
             )
-    key, _ = split(key)
+    return plasticity_coeff, expdata
 
-    if cfg.plasticity_model == "mlp":
-        mlp_params = expdata.pop("mlp_params")
-    df = pd.DataFrame.from_dict(expdata)
-    train_time = round(time.time() - start, 3)
-    print(f"train time: {train_time}s")
-    df["train_time"] = train_time
-
-    if cfg.num_eval > 0:
-        print("evaluating model...")
+def evaluate_model(
+    cfg: Dict[str, Any],
+    plasticity_coeff: Any,
+    plasticity_func: Any,
+    key: jax.random.KeyArray,
+    expdata: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Evaluate the trained model."""
+    if cfg['num_eval'] > 0:
+        logging.info("Evaluating model...")
         r2_score, percent_deviance = model.evaluate(
             key,
             cfg,
             plasticity_coeff,
             plasticity_func,
         )
-        df["percent_deviance"] = percent_deviance
-        if not cfg.use_experimental_data:
-            df["r2_weights"], df["r2_activity"] = (
-                r2_score["weights"],
-                r2_score["activity"],
-            )
+        expdata["percent_deviance"] = percent_deviance
+        if not cfg['use_experimental_data']:
+            expdata["r2_weights"] = r2_score["weights"]
+            expdata["r2_activity"] = r2_score["activity"]
+    return expdata
 
-    for key, value in cfg.items():
-        if isinstance(value, (float, int, str)):
-            df[key] = value
-    df["layer_sizes"] = str(cfg.layer_sizes)
+def save_results(cfg: Dict[str, Any], expdata: Dict[str, Any], train_time: float) -> str:
+    """Save training logs and parameters."""
+    df = pd.DataFrame.from_dict(expdata)
+    df["train_time"] = train_time
 
-    print(df.tail(5))
+    # Add configuration parameters to DataFrame
+    for cfg_key, cfg_value in cfg.items():
+        if isinstance(cfg_value, (float, int, str)):
+            df[cfg_key] = cfg_value
+    df["layer_sizes"] = str(cfg['layer_sizes'])
+
+    logging.info(df.tail(5))
     logdata_path = utils.save_logs(cfg, df)
-    if cfg.plasticity_model == "mlp" and cfg.log_mlp_plasticity:
-        with open(logdata_path / f"mlp_params_{cfg.expid}.pkl", "wb") as f:
+    return logdata_path
+
+def train(cfg: Dict[str, Any]) -> None:
+    """
+    Train a neural network model based on the provided configuration.
+
+    Args:
+        cfg (Dict[str, Any]): Configuration dictionary containing model settings and hyperparameters.
+    """
+    cfg = setup_environment(cfg)
+    key = jax.random.PRNGKey(cfg['expid'])
+
+    data = load_data(cfg, key)
+    params, plasticity_coeff, plasticity_func, key = initialize_parameters(cfg, key)
+
+    start_time = time.time()
+    plasticity_coeff, expdata = training_loop(
+        cfg, params, plasticity_coeff, plasticity_func, data
+    )
+    train_time = round(time.time() - start_time, 3)
+    logging.info(f"Training time: {train_time}s")
+
+    # Remove 'mlp_params' from expdata if present
+    mlp_params = expdata.pop("mlp_params", None)
+
+    key, _ = split(key)
+    expdata = evaluate_model(cfg, plasticity_coeff, plasticity_func, key, expdata)
+    logdata_path = save_results(cfg, expdata, train_time)
+
+    # Save MLP parameters if required
+    if cfg['plasticity_model'] == "mlp" and cfg['log_mlp_plasticity'] and mlp_params:
+        with open(Path(logdata_path) / f"mlp_params_{cfg['expid']}.pkl", "wb") as f:
             pickle.dump(mlp_params, f)

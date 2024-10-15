@@ -7,9 +7,37 @@ from scipy.special import kl_div
 from pathlib import Path
 import os
 import ast
-import time
-import random
+import logging
+from pathlib import Path
+from typing import Any
+from pandas import DataFrame
+from filelock import FileLock
 
+# Define color codes for logging
+RESET = "\x1b[0m"
+COLOR_CODES = {
+    logging.DEBUG: "\x1b[37m",     # White
+    logging.INFO: "\x1b[32m",      # Green
+    logging.WARNING: "\x1b[33m",   # Yellow
+    logging.ERROR: "\x1b[31m",     # Red
+    logging.CRITICAL: "\x1b[41m",  # Red background
+}
+
+class ColoredFormatter(logging.Formatter):
+    def format(self, record):
+        color = COLOR_CODES.get(record.levelno, RESET)
+        message = logging.Formatter.format(self, record)
+        return f"{color}{message}{RESET}"
+
+def setup_logging(level=logging.INFO) -> None:
+    """Set up logging with colored output."""
+    handler = logging.StreamHandler()
+    formatter = ColoredFormatter('%(levelname)s: %(message)s')
+    handler.setFormatter(formatter)
+    root = logging.getLogger()
+    root.setLevel(level)
+    root.handlers = []  # Remove any existing handlers
+    root.addHandler(handler)
 
 def generate_gaussian(key, shape, scale=0.1):
     """
@@ -183,7 +211,7 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
     return expdata
 
 
-def save_logs(cfg, df):
+def save_logs(cfg: Any, df: DataFrame) -> Path:
     """
     Saves the logs to a specified directory based on the configuration.
 
@@ -194,38 +222,28 @@ def save_logs(cfg, df):
     Returns:
         Path: The path where the logs were saved.
     """
-    local_random = random.Random()
-    local_random.seed(os.urandom(10))
-    sleep_duration = local_random.uniform(1, 5)
-    time.sleep(sleep_duration)
-    print(f"Slept for {sleep_duration:.2f} seconds.")
-
+    logger = logging.getLogger(__name__)
     logdata_path = Path(cfg.log_dir)
-    if cfg.log_expdata:
-        if cfg.use_experimental_data:
-            logdata_path = (
-                logdata_path / "expdata" / cfg.exp_name / cfg.plasticity_model
-            )
-        else:
-            logdata_path = (
-                logdata_path / "simdata" / cfg.exp_name / cfg.plasticity_model
-            )
 
+    if cfg.log_expdata:
+        subfolder = "expdata" if cfg.use_experimental_data else "simdata"
+        logdata_path /= subfolder / cfg.exp_name / cfg.plasticity_model
         logdata_path.mkdir(parents=True, exist_ok=True)
+
         csv_file = logdata_path / f"exp_{cfg.expid}.csv"
         write_header = not csv_file.exists()
-
         lock_file = csv_file.with_suffix(".lock")
-        while lock_file.exists():
-            print(f"Waiting for lock on {csv_file}...")
-            time.sleep(random.uniform(1, 5))
+        lock = FileLock(lock_file)
 
         try:
-            lock_file.touch()
-            df.to_csv(csv_file, mode="a", header=write_header, index=False)
-            print(f"Saved logs to {csv_file}")
-        finally:
-            lock_file.unlink()
+            with lock:
+                df.to_csv(csv_file, mode="a", header=write_header, index=False)
+                logger.info(f"Saved logs to {csv_file}")
+        except Exception as e:
+            logger.error(f"Failed to save logs to {csv_file}: {e}")
+            raise
+    else:
+        logger.warning("Logging of experimental data is disabled.")
 
     return logdata_path
 
@@ -265,9 +283,10 @@ def validate_config(cfg):
     assert (
         len(cfg.layer_sizes) == 2 or len(cfg.layer_sizes) == 3
     ), "only 2, 3 layer networks supported!"
-    assert (
-        cfg.neural_recording_sparsity >= 0.0 and cfg.neural_recording_sparsity <= 1.0
-    ), "neural recording sparsity must be between 0 and 1!"
+    if "neural" in cfg.fit_data:
+        assert (
+            cfg.neural_recording_sparsity >= 0.0 and cfg.neural_recording_sparsity <= 1.0
+        ), "neural recording sparsity must be between 0 and 1!"
     assert cfg.device in ["cpu", "gpu"], "device must be cpu or gpu!"
 
     if cfg.plasticity_model == "mlp":
@@ -282,9 +301,10 @@ def validate_config(cfg):
     if cfg.use_experimental_data:
         num_flies = len(os.listdir(cfg.data_dir))
         assert (
-            cfg.flyid > 0 and cfg.flyid <= num_flies
+            cfg.expid > 0 and cfg.expid <= num_flies
         ), f"Fly experimental data only for flyids 1-{num_flies}!"
         assert cfg.num_blocks == 3, "all Adi's data gathering consists of 3 blocks!"
+        # assert cfg.num_train == 1, "fitting models per fly, so num_train must be 1!"
         assert (
             "behavior" in cfg.fit_data and "neural" not in cfg.fit_data
         ), "only behavior experimental data available!"
