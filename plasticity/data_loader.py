@@ -276,7 +276,7 @@ def load_fly_expdata(key, cfg, mode):
     print(f"Loading {mode} experimental data...")
 
     xs, neural_recordings, decisions, rewards, expected_rewards = {}, {}, {}, {}, {}
-    max_exp_id = len(os.listdir(cfg.data_dir))
+    max_exp_id = 18  # Total number of fly data files
 
     input_dim = cfg.layer_sizes[0]
     if mode == "train":
@@ -284,12 +284,13 @@ def load_fly_expdata(key, cfg, mode):
     else:
         num_sampling = cfg.num_eval
     for sample_i in range(num_sampling):
-        key, _ = split(key)
-        file = f"Fly{cfg.expid}.mat"
-        odor_mus, odor_sigmas = inputs.generate_input_parameters(seed=sample_i, cfg=cfg)
+        key, subkey = split(key)
+        file_number = ((cfg.expid + sample_i - 1) % max_exp_id) + 1
+        file = f"Fly{file_number}.mat"
+        odor_mus, odor_sigmas = inputs.generate_input_parameters(key, cfg)
         sample_i = str(sample_i)
         data = sio.loadmat(cfg.data_dir + file)
-        print(f"File {file}, generating sample {sample_i}")
+        print(f"File {file}, loading sample id {sample_i}")
         odor_ids, Y, R = data["X"], data["Y"], data["R"]
         odors = np.where(odor_ids == 1)[1]
         Y = np.squeeze(Y)
@@ -307,12 +308,12 @@ def load_fly_expdata(key, cfg, mode):
 
         for index, decision, odor in zip(indices, Y, odors):
             exp_decisions[index].append(decision)
-            x = inputs.sample_inputs(key, odor_mus, odor_sigmas, odor)
+            x = inputs.sample_inputs(subkey, odor_mus, odor_sigmas, odor)
             exp_xs[index].append(x)
 
         trial_lengths = [len(exp_decisions[i]) for i in range(num_trials)]
         max_trial_length = np.max(np.array(trial_lengths))
-
+        print(f"Max trial length: {max_trial_length}")
         d_tensor = np.full((num_trials, max_trial_length), np.nan)
         for i in range(num_trials):
             for j in range(trial_lengths[i]):
@@ -332,7 +333,6 @@ def load_fly_expdata(key, cfg, mode):
         neural_recordings[sample_i] = None
 
     return xs, neural_recordings, decisions, rewards, expected_rewards
-
 
 def get_trial_lengths(decisions):
     """
