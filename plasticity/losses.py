@@ -111,11 +111,13 @@ def loss(
     Returns:
         float: Loss for the cross entropy model.
     """
-    loss = 0.0
     if cfg.plasticity_model == "volterra":
-        coeff_mask = jnp.array(cfg.coeff_mask)
-        plasticity_coeff = jnp.multiply(plasticity_coeff, coeff_mask)
-        loss = cfg.l1_regularization * jnp.sum(jnp.abs(plasticity_coeff))
+        plasticity_coeff = jnp.multiply(plasticity_coeff, jnp.array(cfg.coeff_mask))
+        if cfg.regularization_type.lower() != "none":
+            reg_func = jnp.abs if "l1" in cfg.regularization_type.lower() else jnp.square
+            loss = cfg.regularization_scale * jnp.sum(reg_func(plasticity_coeff))
+        else:
+            loss = 0.0
 
     trial_lengths = data_loader.get_trial_lengths(decisions)
     params_trajec, activations = model.simulate(

@@ -288,15 +288,18 @@ def evaluate(
 
     print(f"r2 score: {r2_score}")
     print(f"percent deviance: {percent_deviance}")
-    try:
+
+    if percent_deviance:
         percent_deviance = np.median(percent_deviance)
         print("median percent deviance: ", percent_deviance)
+
+    if r2_score.get("weights"):
         r2_score["weights"] = np.median(r2_score["weights"])
         print("median r2 weights: ", r2_score["weights"])
+
+    if r2_score.get("activity"):
         r2_score["activity"] = np.median(r2_score["activity"])
         print("median r2 activity: ", r2_score["activity"])
-    except:
-        pass
     return r2_score, percent_deviance
 
 
@@ -352,6 +355,7 @@ def evaluate_percent_deviance(decisions, model_activations, null_model_activatio
     decisions = decisions[mask]
     ys = ys[mask]
     null_ys = null_ys[mask]
+    
     model_deviance = utils.compute_neg_log_likelihoods(ys, decisions)
     null_deviance = utils.compute_neg_log_likelihoods(null_ys, decisions)
     percent_deviance = 100 * (null_deviance - model_deviance) / null_deviance
