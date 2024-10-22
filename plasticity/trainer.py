@@ -1,5 +1,4 @@
 import time
-import sys
 import logging
 import pickle
 from pathlib import Path
@@ -17,30 +16,6 @@ import plasticity.losses as losses
 import plasticity.model as model
 import plasticity.utils as utils
 
-
-def setup_environment(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Set up the environment based on the configuration."""
-    utils.setup_logging(level=logging.INFO)
-    cfg = utils.validate_config(cfg)
-    np.set_printoptions(suppress=True, threshold=sys.maxsize)
-    try:
-        jax.config.update("jax_platform_name", cfg['device'])
-    except Exception as e:
-        logging.warning(f"Could not set JAX platform to {cfg['device']}: {e}")
-    device = jax.lib.xla_bridge.get_backend().platform
-    logging.info(f"Platform: {device}")
-    logging.info(f"Layer sizes: {cfg['layer_sizes']}")
-    return cfg
-
-def load_data(cfg: Dict[str, Any], key: jax.random.KeyArray) -> Tuple[Any, Any, Any, Any, Any]:
-    """Load data based on the configuration."""
-    start_time = time.time()
-    data = data_loader.load_data(key, cfg)
-    duration = round(time.time() - start_time, 3)
-    logging.info(f"Loaded data in: {duration}s!")
-    resampled_xs = data[0]
-    logging.debug(f"First data sample: {resampled_xs['0'][0]}")
-    return data
 
 def initialize_parameters(
     cfg: Dict[str, Any], key: jax.random.KeyArray
@@ -131,6 +106,7 @@ def save_results(cfg: Dict[str, Any], expdata: Dict[str, Any], train_time: float
     logdata_path = utils.save_logs(cfg, df)
     return logdata_path
 
+
 def train(cfg: Dict[str, Any]) -> None:
     """
     Train a neural network model based on the provided configuration.
@@ -138,17 +114,15 @@ def train(cfg: Dict[str, Any]) -> None:
     Args:
         cfg (Dict[str, Any]): Configuration dictionary containing model settings and hyperparameters.
     """
-    cfg = setup_environment(cfg)
     key = jax.random.PRNGKey(cfg['expid'])
-
-    data = load_data(cfg, key)
+    data = data_loader.load_data(key, cfg)
     params, plasticity_coeff, plasticity_func, key = initialize_parameters(cfg, key)
 
     start_time = time.time()
     plasticity_coeff, expdata = training_loop(
         cfg, params, plasticity_coeff, plasticity_func, data
     )
-    train_time = round(time.time() - start_time, 3)
+    train_time = round(time.time() - start_time, 2)
     logging.info(f"Training time: {train_time}s")
 
     # Remove 'mlp_params' from expdata if present
@@ -156,6 +130,7 @@ def train(cfg: Dict[str, Any]) -> None:
 
     key, _ = split(key)
     expdata = evaluate_model(cfg, plasticity_coeff, plasticity_func, key, expdata)
+    logging.info(f"Percent deviance explained: {expdata['percent_deviance']}")
     logdata_path = save_results(cfg, expdata, train_time)
 
     # Save MLP parameters if required

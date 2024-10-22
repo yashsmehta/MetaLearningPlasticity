@@ -8,25 +8,32 @@ import os
 import ast
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 from pandas import DataFrame
-from filelock import FileLock
+import random
+import time
+import sys
+from colorama import init, Fore, Back, Style
 
-# Define color codes for logging
-RESET = "\x1b[0m"
+# Initialize colorama
+init(autoreset=True)
+
+# Define color codes for logging using colorama
 COLOR_CODES = {
-    logging.DEBUG: "\x1b[37m",     # White
-    logging.INFO: "\x1b[32m",      # Green
-    logging.WARNING: "\x1b[33m",   # Yellow
-    logging.ERROR: "\x1b[31m",     # Red
-    logging.CRITICAL: "\x1b[41m",  # Red background
+    logging.DEBUG: Fore.WHITE,
+    logging.INFO: Fore.GREEN,
+    logging.WARNING: Fore.YELLOW,
+    logging.ERROR: Fore.RED,
+    logging.CRITICAL: Back.RED + Fore.WHITE,
 }
 
 class ColoredFormatter(logging.Formatter):
     def format(self, record):
-        color = COLOR_CODES.get(record.levelno, RESET)
-        message = logging.Formatter.format(self, record)
-        return f"{color}{message}{RESET}"
+        color = COLOR_CODES.get(record.levelno, '')
+        # Format the message and levelname with color
+        record.levelname = f"{color}{record.levelname}{Style.RESET_ALL}"
+        record.msg = f"{color}{record.msg}{Style.RESET_ALL}"
+        return super().format(record)
 
 def setup_logging(level=logging.INFO) -> None:
     """Set up logging with colored output."""
@@ -37,6 +44,16 @@ def setup_logging(level=logging.INFO) -> None:
     root.setLevel(level)
     root.handlers = []  # Remove any existing handlers
     root.addHandler(handler)
+
+
+def setup_platform(device: str) -> None:
+    """Set up the environment based on the configuration."""
+    try:
+        jax.config.update("jax_platform_name", device)
+    except Exception as e:
+        logging.warning(f"Could not set JAX platform to {device}: {e}")
+    device = jax.lib.xla_bridge.get_backend().platform
+    logging.info(f"Platform: {device}")
 
 def generate_gaussian(key, shape, scale=0.1):
     """
@@ -210,7 +227,7 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
     return expdata
 
 
-def save_logs(cfg: Any, df: DataFrame) -> Path:
+def save_logs(cfg, df):
     """
     Saves the logs to a specified directory based on the configuration.
 
@@ -221,28 +238,38 @@ def save_logs(cfg: Any, df: DataFrame) -> Path:
     Returns:
         Path: The path where the logs were saved.
     """
-    logger = logging.getLogger(__name__)
+    local_random = random.Random()
+    local_random.seed(os.urandom(10))
+    sleep_duration = local_random.uniform(1, 5)
+    time.sleep(sleep_duration)
+    print(f"Slept for {sleep_duration:.2f} seconds.")
+
     logdata_path = Path(cfg.log_dir)
-
     if cfg.log_expdata:
-        subfolder = "expdata" if cfg.use_experimental_data else "simdata"
-        logdata_path /= subfolder / cfg.exp_name / cfg.plasticity_model
-        logdata_path.mkdir(parents=True, exist_ok=True)
+        if cfg.use_experimental_data:
+            logdata_path = (
+                logdata_path / "expdata" / cfg.exp_name / cfg.plasticity_model
+            )
+        else:
+            logdata_path = (
+                logdata_path / "simdata" / cfg.exp_name / cfg.plasticity_model
+            )
 
+        logdata_path.mkdir(parents=True, exist_ok=True)
         csv_file = logdata_path / f"exp_{cfg.expid}.csv"
         write_header = not csv_file.exists()
+
         lock_file = csv_file.with_suffix(".lock")
-        lock = FileLock(lock_file)
+        while lock_file.exists():
+            print(f"Waiting for lock on {csv_file}...")
+            time.sleep(random.uniform(1, 5))
 
         try:
-            with lock:
-                df.to_csv(csv_file, mode="a", header=write_header, index=False)
-                logger.info(f"Saved logs to {csv_file}")
-        except Exception as e:
-            logger.error(f"Failed to save logs to {csv_file}: {e}")
-            raise
-    else:
-        logger.warning("Logging of experimental data is disabled.")
+            lock_file.touch()
+            df.to_csv(csv_file, mode="a", header=write_header, index=False)
+            print(f"Saved logs to {csv_file}")
+        finally:
+            lock_file.unlink()
 
     return logdata_path
 
@@ -300,6 +327,10 @@ def validate_config(cfg: Any) -> Any:
     # Validate device
     if cfg.device not in ["cpu", "gpu"]:
         raise ValueError("Device must be 'cpu' or 'gpu'!")
+
+    # Validate regularization_type
+    if cfg.regularization_type.lower() not in ['l1', 'l2', 'none']:
+        raise ValueError("Only 'l1', 'l2', and 'none' regularization types are supported!")
 
     # Validate plasticity_coeff_init for MLP
     if cfg.plasticity_model == "mlp":
