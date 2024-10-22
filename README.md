@@ -56,10 +56,14 @@ This project is organized as follows:
 - `pyproject.toml`: This file is used by Poetry for managing project dependencies.
 
 ### Citing
+If you use our work, please cite:
+
 ```bibtex
-@misc{metalearn-plasticity-2024,
-  title={Model based inference of synaptic plasticity rules}, 
-  author={}, 
-  year={2024}, publisher={GitHub},
-  howpublished={\url{}} }
-```
+@inproceedings{metalearn-plasticity-2024,
+  title={Model-Based Inference of Synaptic Plasticity Rules},
+  author={Mehta, Yash and Tyulmankov, Danil and Rajgopalan, Adithya and Turner, Glenn and Fitzgerald, James and Funke, Jan},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS) 2024},
+  year={2024},
+  url={https://neurips.cc/},
+  note={To appear}
+}
