@@ -16,8 +16,6 @@ import plasticity.synapse as synapse
 from plasticity.utils import experiment_list_to_tensor
 from plasticity.utils import create_nested_list
 
-logger = logging.getLogger(__name__)
-
 def load_data(key, cfg, mode="train"):
     """
     Functionality: Load data for training or evaluation.
@@ -67,11 +65,11 @@ def generate_experiments_data(key, cfg, plasticity_coeff, plasticity_func, mode)
 
     for exp_i in range(num_experiments):
         seed = (cfg.expid + 1) * (exp_i + 1)
-        odor_mus, odor_sigmas = inputs.generate_input_parameters(seed, cfg)
+        exp_key = jax.random.PRNGKey(seed)
+        odor_mus, odor_sigmas = inputs.generate_input_parameters(exp_key, cfg)
         exp_i = str(exp_i)
-        key, subkey = split(key)
+        key, subkey = split(exp_key)
         params = model.initialize_params(key, cfg)
-        # print("prob_output:")
         (
             exp_xs,
             exp_odors,
@@ -269,7 +267,7 @@ def expected_reward_for_exp_data(R, moving_avg_window):
 
 def load_fly_expdata(
     key: Any, cfg: Any, mode: str
-) -> Tuple[Dict[int, np.ndarray], Dict[int, Any], Dict[int, np.ndarray], Dict[int, np.ndarray], Dict[int, np.ndarray]]:
+) -> Tuple[Dict[str, np.ndarray], Dict[str, Any], Dict[str, np.ndarray], Dict[str, np.ndarray], Dict[str, np.ndarray]]:
     """
     Load experimental data for training or evaluation.
 
@@ -281,45 +279,42 @@ def load_fly_expdata(
     Returns:
         Tuple[Dict[int, np.ndarray], ...]: Dictionaries for xs, neural_recordings, decisions, rewards, expected_rewards.
     """
-    logger.info(f"Loading {mode} experimental data...")
+    logging.info(f"Loading {mode} experimental data...")
 
-    xs: Dict[int, np.ndarray] = {}
-    neural_recordings: Dict[int, Any] = {}
-    decisions: Dict[int, np.ndarray] = {}
-    rewards: Dict[int, np.ndarray] = {}
-    expected_rewards: Dict[int, np.ndarray] = {}
+    xs: Dict[str, np.ndarray] = {}
+    neural_recordings: Dict[str, Any] = {}
+    decisions: Dict[str, np.ndarray] = {}
+    rewards: Dict[str, np.ndarray] = {}
+    expected_rewards: Dict[str, np.ndarray] = {}
 
-    max_exp_id = 18  # Total number of fly data files
     input_dim = cfg.layer_sizes[0]
     num_sampling = cfg.num_train if mode == "train" else cfg.num_eval
+    file_name = f"Fly{cfg.expid}.mat"
+    file_path = os.path.join(cfg.data_dir, file_name)
+    logging.info(f"Loading file {file_name}")
+
+    try:
+        data = sio.loadmat(file_path)
+    except FileNotFoundError:
+        logging.error(f"File not found: {file_path}")
 
     for sample_idx in range(num_sampling):
         key, subkey = split(key)
-        file_number = ((cfg.expid + sample_idx - 1) % max_exp_id) + 1
-        file_name = f"Fly{file_number}.mat"
-        file_path = os.path.join(cfg.data_dir, file_name)
-
         odor_mus, odor_sigmas = inputs.generate_input_parameters(key, cfg)
-        logger.info(f"File {file_name}, loading sample id {sample_idx}")
-
-        try:
-            data = sio.loadmat(file_path)
-        except FileNotFoundError:
-            logger.error(f"File not found: {file_path}")
-            continue
+        logging.info(f"Generating input parameters: Sample {sample_idx}")
 
         odor_ids = data.get("X")
         Y = np.squeeze(data.get("Y"))
         R = np.squeeze(data.get("R"))
 
         if odor_ids is None or Y is None or R is None:
-            logger.error(f"Data missing in file: {file_path}")
+            logging.error(f"Data missing in file: {file_path}")
             continue
 
         odors = np.where(odor_ids == 1)[1]
         num_trials = int(np.sum(Y))
         if num_trials != R.shape[0]:
-            logger.error("Y and R should have the same number of trials")
+            logging.error("Y and R should have the same number of trials")
             continue
 
         # Compute the starting index for each trial
@@ -336,7 +331,6 @@ def load_fly_expdata(
 
         trial_lengths = [len(trial) for trial in exp_decisions]
         max_trial_length = max(trial_lengths)
-        logger.info(f"Max trial length for sample {sample_idx}: {max_trial_length}")
 
         # Prepare tensors for decisions and inputs
         decisions_tensor = np.full((num_trials, max_trial_length), np.nan)
@@ -354,6 +348,7 @@ def load_fly_expdata(
         expected_rewards[str(sample_idx)] = expected_reward_for_exp_data(R, cfg.moving_avg_window)
         neural_recordings[str(sample_idx)] = None
 
+    logging.info(f"Max trial length: {max_trial_length}")
     return xs, neural_recordings, decisions, rewards, expected_rewards
 
 
