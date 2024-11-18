@@ -4,6 +4,10 @@
 [![JAX](https://img.shields.io/badge/Framework-JAX-important?style=for-the-badge&logo=Apache-Kafka)](https://github.com/google/jax)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&logo=open-source-initiative)](https://github.com/countzerozzz/nodepert/edit/master/LICENSE.md)
 
+
+[**Paper Website [NeurIPS'24]**](https://yashsmehta.com/plasticity-paper-website/)
+
+
 This codebase is designed to infer synaptic plasticity rules from experimental data on neural activity or behavioral trajectories. Our methodology parameterizes the plasticity function to provide theoretical interpretability and facilitate gradient-based optimization.
 
 Features
