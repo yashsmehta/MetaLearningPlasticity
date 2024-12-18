@@ -2,12 +2,13 @@ import jax.numpy as jnp
 import numpy as np
 import jax
 from functools import partial
+import sklearn.metrics
+from statistics import mean
+import logging
+
 import plasticity.data_loader as data_loader
 import plasticity.utils as utils
 import plasticity.synapse as synapse
-import sklearn.metrics
-from statistics import mean
-
 
 def initialize_params(key, cfg, scale=0.01, last_layer_multiplier=5.0):
     """
@@ -311,22 +312,24 @@ def evaluate_r2_score(
         activations (array): Array of activations.
         model_params_trajec (array): Array of model parameters trajectory.
         model_activations (array): Array of model activations.
-    Returns: A dict of R2 scores for weights and activity in the format of {"weights": [R2 score], "activity": [R2 score]}, i.e. lists of length 1.
+    Returns: Dict of R2 scores for weights and activity.
     """
     r2_score = {}
     num_trials = logits_mask.shape[0]
-    weight_trajec = np.array(params_trajec[0][0]).reshape(num_trials, -1)
-    layer_activations = np.squeeze(activations[1])
+    
+    # Convert JAX arrays to NumPy arrays
+    weight_trajec = np.asarray(params_trajec[0][0]).reshape(num_trials, -1)
+    layer_activations = np.asarray(np.squeeze(activations[1]))
 
-    model_weight_trajec = np.array(model_params_trajec[0][0]).reshape(num_trials, -1)
-    model_layer_activations = np.squeeze(model_activations[1])
+    model_weight_trajec = np.asarray(model_params_trajec[0][0]).reshape(num_trials, -1)
+    model_layer_activations = np.asarray(np.squeeze(model_activations[1]))
 
     r2_score["weights"] = [sklearn.metrics.r2_score(weight_trajec, model_weight_trajec)]
 
     if len(params_trajec) == 1:
-        # if there is no hidden layer, then the layer activations are the same as the logits
-        layer_activations = jax.nn.sigmoid(layer_activations)
-        model_layer_activations = jax.nn.sigmoid(model_layer_activations)
+        # Convert to NumPy before applying sigmoid
+        layer_activations = np.asarray(jax.nn.sigmoid(layer_activations))
+        model_layer_activations = np.asarray(jax.nn.sigmoid(model_layer_activations))
 
     logits_mask = np.where(logits_mask == 0, np.nan, logits_mask)
     layer_activations = layer_activations[~np.isnan(logits_mask)]
