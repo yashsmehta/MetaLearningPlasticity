@@ -51,8 +51,11 @@ def generate_experiments_data(key, cfg, plasticity_coeff, plasticity_func, mode)
     """
     if mode == "train":
         num_experiments = cfg.num_train
+        logging.info(f"\nGenerating {num_experiments} trajectories")
     else:
         num_experiments = cfg.num_eval
+        logging.info(f"\nGenerating {num_experiments} trajectories")
+
     xs, odors, neural_recordings, decisions, rewards, expected_rewards = (
         {},
         {},
@@ -61,7 +64,6 @@ def generate_experiments_data(key, cfg, plasticity_coeff, plasticity_func, mode)
         {},
         {},
     )
-    print("generating experiments data...")
 
     for exp_i in range(num_experiments):
         seed = (cfg.expid + 1) * (exp_i + 1)

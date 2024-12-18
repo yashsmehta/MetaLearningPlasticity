@@ -78,7 +78,7 @@ def evaluate_model(
 ) -> Dict[str, Any]:
     """Evaluate the trained model."""
     if cfg['num_eval'] > 0:
-        logging.info("Evaluating model...")
+        logging.info("\nEvaluating model...")
         r2_score, percent_deviance = model.evaluate(
             key,
             cfg,
@@ -115,7 +115,7 @@ def train(cfg: Dict[str, Any]) -> None:
         cfg (Dict[str, Any]): Configuration dictionary containing model settings and hyperparameters.
     """
     key = jax.random.PRNGKey(cfg['expid'])
-    data = data_loader.load_data(key, cfg)
+    data = data_loader.load_data(key, cfg, mode="train")
     params, plasticity_coeff, plasticity_func, key = initialize_parameters(cfg, key)
 
     start_time = time.time()

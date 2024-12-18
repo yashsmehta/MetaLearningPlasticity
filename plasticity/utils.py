@@ -48,12 +48,17 @@ def setup_logging(level=logging.INFO) -> None:
 
 def setup_platform(device: str) -> None:
     """Set up the environment based on the configuration."""
-    try:
-        jax.config.update("jax_platform_name", device)
-    except Exception as e:
-        logging.warning(f"Could not set JAX platform to {device}: {e}")
+    # Suppress JAX backend initialization messages if using CPU
+    if device == "cpu":
+        logging.getLogger('jax._src.xla_bridge').setLevel(logging.ERROR)
+    elif device == "gpu":
+        try:
+            jax.config.update("jax_platform_name", device)
+        except Exception as e:
+            logging.warning(f"Could not set JAX platform to {device}: {e}")
+
     device = jax.lib.xla_bridge.get_backend().platform
-    logging.info(f"Platform: {device}")
+    logging.info(f"Platform: {device}\n")
 
 def generate_gaussian(key, shape, scale=0.1):
     """
@@ -175,8 +180,8 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
     Returns:
         dict: Updated experimental data dictionary.
     """
-    print(f"epoch :{epoch}")
-    print(f"loss :{loss}")
+    logging.info(f"Epoch: {epoch}")
+    logging.info(f"Loss: {loss}")
 
     if cfg.plasticity_model == "volterra":
         coeff_mask = np.array(cfg.coeff_mask)
@@ -194,7 +199,7 @@ def print_and_log_training_info(cfg, expdata, plasticity_coeff, epoch, loss):
         top_indices = np.argsort(
             plasticity_coeff[ind_i, ind_j, ind_k, ind_l].flatten()
         )[-5:]
-        print("top plasticity coeffs:")
+        print("Top learned plasticity terms:")
         print("{:<10} {:<20}".format("Term", "Coefficient"))
         for idx in reversed(top_indices):
             term_str = ""
@@ -293,7 +298,6 @@ def validate_config(cfg: Any) -> Any:
     # Convert layer_sizes from string to list if necessary
     if isinstance(cfg.layer_sizes, str):
         cfg.layer_sizes = ast.literal_eval(cfg.layer_sizes)
-        logging.info("Converted layer_sizes from string to list.")
 
     # Validate reward_ratios length
     if len(cfg.reward_ratios) != cfg.num_blocks:

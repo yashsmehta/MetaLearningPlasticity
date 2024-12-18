@@ -63,6 +63,18 @@ def main():
     cfg = validate_config(cfg)
     setup_platform(cfg.device)
     
+    # Log important configuration parameters
+    if cfg.use_experimental_data:
+        logging.info(f"Using experimental data from {cfg.data_dir}")
+    else:
+        logging.info(f"Using simulated data")
+        logging.info(f"Ground truth plasticity rule: {cfg.generation_coeff_init}")
+
+    logging.info(f"Fitting on: {cfg.fit_data} trajectories")
+    logging.info(f"Plasticity model: {cfg.plasticity_model}")
+    logging.info(f"Neural network layer sizes: {cfg.layer_sizes}")
+    logging.info(f"Trainable coefficients: {cfg.trainable_coeffs}")
+    
     trainer.train(cfg)
 
 if __name__ == "__main__":

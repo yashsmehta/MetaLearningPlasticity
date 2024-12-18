@@ -282,20 +282,21 @@ def evaluate(
                 for dict_key in r2_score.keys()
             }
 
-    print(f"r2 score: {r2_score}")
-    print(f"percent deviance: {percent_deviance}")
+    logging.info(f"\nRaw results: {r2_score}")
+    print(f"R2 score: {r2_score}")
+    print(f"Percent deviance: {percent_deviance}")
 
     if percent_deviance:
         percent_deviance = np.median(percent_deviance)
-        print("median percent deviance: ", percent_deviance)
+        logging.info(f"\nMedian percent deviance: {percent_deviance}")
 
     if r2_score.get("weights"):
         r2_score["weights"] = np.median(r2_score["weights"])
-        print("median r2 weights: ", r2_score["weights"])
+        logging.info(f"Median R2 weights: {r2_score['weights']}")
 
     if r2_score.get("activity"):
         r2_score["activity"] = np.median(r2_score["activity"])
-        print("median r2 activity: ", r2_score["activity"])
+        logging.info(f"Median R2 activity: {r2_score['activity']}\n")
     return r2_score, percent_deviance
 
 
