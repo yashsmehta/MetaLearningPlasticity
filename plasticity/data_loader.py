@@ -205,7 +205,7 @@ def generate_trial(
 
     while True:
         key, _ = split(key)
-        odor = int(bernoulli(key, 0.5))
+        odor = bernoulli(key, 0.5).astype(int)
         trial_odors.append(odor)
         key, subkey = split(key)
         x = inputs.sample_inputs(key, odor_mus, odor_sigmas, odor)
@@ -215,16 +215,15 @@ def generate_trial(
         prob_output = sigmoid(activations[-1])
 
         key, subkey = split(key)
-        sampled_output = float(bernoulli(subkey, prob_output))
-
+        sampled_output = bernoulli(subkey, prob_output.squeeze()).astype(float)
         input_xs.append(resampled_x)
-        # always recording the output neuron
+
+        # always recording the output neuron, note: this should be size 1 array
         neural_recordings.append(prob_output)
 
         decisions.append(sampled_output)
 
         if sampled_output == 1:
-            # print(prob_output)
             reward = rewards_in_arena[odor]
             r_history.appendleft(reward)
             rewards_in_arena[odor] = 0

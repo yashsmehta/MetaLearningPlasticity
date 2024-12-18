@@ -4,13 +4,13 @@ from typing import Tuple
 
 
 def generate_input_parameters(
-    key: jax.random.KeyArray, cfg
+    key: jax.random.PRNGKey, cfg
 ) -> Tuple[jnp.ndarray, float]:
     """
     Generates input parameters for a neural network model.
 
     Args:
-        key (jax.random.KeyArray): Random key for generating random numbers.
+        key (jax.random.PRNGKey): Random key for generating random numbers.
         cfg: Configuration object containing model settings, including:
             - layer_sizes (list): Sizes of each layer in the network.
             - input_firing_mean (float): Mean firing rate for the input neurons.
@@ -44,13 +44,13 @@ def generate_input_parameters(
 
 
 def sample_inputs(
-    key: jax.random.KeyArray, mus: jnp.ndarray, sigma: float, odor: int
+    key: jax.random.PRNGKey, mus: jnp.ndarray, sigma: float, odor: int
 ) -> jnp.ndarray:
     """
     Samples input data for a given odor using specified mean and variance.
 
     Args:
-        key (jax.random.KeyArray): Random key for generating random numbers.
+        key (jax.random.PRNGKey): Random key for generating random numbers.
         mus (jnp.ndarray): Array of shape (2, input_dim) representing mean firing rates.
         sigma (float): Standard deviation of the input neurons.
         odor (int): Index of the odor to sample inputs for (0 or 1).

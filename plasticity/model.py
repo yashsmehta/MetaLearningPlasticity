@@ -52,7 +52,6 @@ def network_forward(params, inputs):
         inputs (array): Input data.
     Returns: Activations for all layers, and logits.
     """
-    print("compiling model.network_forward()...")
     activations = [inputs]
     activation = inputs
     for w, b in params[:-1]:
@@ -93,8 +92,6 @@ def simulate(
             activations: [(num_trials, trial_length)
             weight tensor: (num_trials, input_dim, output_dim)
     """
-
-    print("compiling model.simulate()...")
 
     def step(carry, stimulus):
         params = carry
@@ -160,7 +157,6 @@ def update_params(
         expected_reward (float): Expected reward for the trial.
     Returns: Updated parameters.
     """
-    print("compiling model.update_params()...")
     input_dim = params[0][0].shape[0]
     lr = 1.0 / input_dim
     # using expected reward or just the reward:

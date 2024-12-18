@@ -18,8 +18,8 @@ import plasticity.utils as utils
 
 
 def initialize_parameters(
-    cfg: Dict[str, Any], key: jax.random.KeyArray
-) -> Tuple[Any, Any, Any, jax.random.KeyArray]:
+    cfg: Dict[str, Any], key: jax.random.PRNGKey
+) -> Tuple[Any, Any, Any, jax.random.PRNGKey]:
     """Initialize model parameters and plasticity coefficients."""
     key, subkey = split(key)
     params = model.initialize_params(key, cfg)
@@ -73,7 +73,7 @@ def evaluate_model(
     cfg: Dict[str, Any],
     plasticity_coeff: Any,
     plasticity_func: Any,
-    key: jax.random.KeyArray,
+    key: jax.random.PRNGKey,
     expdata: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Evaluate the trained model."""
