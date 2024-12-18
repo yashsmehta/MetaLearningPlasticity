@@ -2,7 +2,6 @@
 *.pyc
 *.egg-info
 *.dat
-*.lock
 .coverage
 build
 dist
