@@ -13,3 +13,4 @@ playground/*
 plotters/*
 *.out
 .ipynb_checkpoints
+.DS_Store
